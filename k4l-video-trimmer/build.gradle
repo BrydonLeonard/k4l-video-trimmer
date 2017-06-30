@@ -1,9 +1,8 @@
 apply plugin: 'com.android.library'
-apply from: '../mavenpush.gradle'
 
 android {
     compileSdkVersion 24
-    buildToolsVersion "23.0.3"
+    buildToolsVersion '25.0.0'
 
     defaultConfig {
         minSdkVersion 16
@@ -23,7 +22,7 @@ android {
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     compile 'com.android.support:appcompat-v7:24.0.0'
-    compile 'com.writingminds:FFmpegAndroid:0.3.2'
+    compile group: 'org.bytedeco', name: 'javacv-platform', version: '1.3.2'
     testCompile 'junit:junit:4.12'
     androidTestCompile 'com.android.support.test.espresso:espresso-core:2.2.2'
     androidTestCompile 'com.android.support.test:runner:0.5'

@@ -46,13 +46,14 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.VideoView;
 
-import com.github.hiteshsondhi88.libffmpeg.ExecuteBinaryResponseHandler;
-import com.github.hiteshsondhi88.libffmpeg.FFmpeg;
-import com.github.hiteshsondhi88.libffmpeg.LoadBinaryResponseHandler;
-import com.github.hiteshsondhi88.libffmpeg.exceptions.FFmpegCommandAlreadyRunningException;
-import com.github.hiteshsondhi88.libffmpeg.exceptions.FFmpegNotSupportedException;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.FrameGrabber;
+import org.bytedeco.javacv.FrameRecorder;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
@@ -142,32 +143,6 @@ public class K4LVideoTrimmer extends FrameLayout {
         });
 
         loading.setVisibility(GONE);
-        FFmpeg fFmpeg = FFmpeg.getInstance(getContext());
-        try {
-            fFmpeg.loadBinary(new LoadBinaryResponseHandler(){
-                @Override
-                public void onStart() {
-                    Log.d(TAG, "onStart: ");
-                }
-
-                @Override
-                public void onFailure() {
-                    Log.d(TAG, "onFailure: ");
-                }
-
-                @Override
-                public void onSuccess() {
-                    Log.d(TAG, "onSuccess: ");
-                }
-
-                @Override
-                public void onFinish() {
-                    Log.d(TAG, "onFinish: ");
-                }
-            });
-        } catch (FFmpegNotSupportedException e) {
-            e.printStackTrace();
-        }
 
         setUpListeners();
         setUpMargins();
@@ -336,46 +311,42 @@ public class K4LVideoTrimmer extends FrameLayout {
 
             final String outPutPath = getRealPathFromUri(outputFileUri);
 
-            FFmpeg ffmpeg = FFmpeg.getInstance(getContext());
-            String[] command = {"-y",  "-i", file.getPath(), "-ss", stringForTime(mStartPosition), "-to", stringForTime(mEndPosition), "-c", "copy", outPutPath};//{"-y", "-ss", "00:00:03", "-i", file.getPath(), "-t", "00:00:08", "-async", "1", outPutPath};  //-i movie.mp4 -ss 00:00:03 -t 00:00:08 -async 1 cut.mp4
-            try {
-                ffmpeg.execute(command, new ExecuteBinaryResponseHandler(){
-                    @Override
-                    public void onSuccess(String message) {
-                        super.onSuccess(message);
-                        Log.d(TAG, "onSuccess: "+message);
+            Runnable trimRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        final FrameGrabber grabber = new FFmpegFrameGrabber(mSrc.toString());
+                        final FrameRecorder recorder = new FFmpegFrameRecorder(outPutPath, 1);
+
+                        grabber.setFormat("mp4");
+                        grabber.start();
+                        grabber.setTimestamp(mStartPosition);
+
+                        recorder.setFrameRate(grabber.getFrameRate());
+                        recorder.setSampleRate(grabber.getSampleRate());
+                        recorder.setImageWidth(grabber.getImageWidth());
+                        recorder.setImageHeight(grabber.getImageHeight());
+                        recorder.start();
+
+                        Frame frame;
+                        //Recorder returns timestamp in time intervals 1000 times smaller than k4l
+                        while(((frame = grabber.grab()) != null) && (recorder.getTimestamp()/1000) < mEndPosition) {
+                            recorder.record(frame);
+                        }
+
+                        recorder.stop();
+                        grabber.stop();
+                    } catch (FrameRecorder.Exception e) {
+                        e.printStackTrace();
+                    } catch (FrameGrabber.Exception e) {
+                        e.printStackTrace();
                     }
 
-                    @Override
-                    public void onProgress(String message) {
-                        super.onProgress(message);
-                        Log.d(TAG, "onProgress: "+message);
-                    }
-
-                    @Override
-                    public void onFailure(String message) {
-                        super.onFailure(message);
-                        loading.setVisibility(GONE);
-                        Log.d(TAG, "onFailure: "+message);
-                    }
-
-                    @Override
-                    public void onStart() {
-                        super.onStart();
-                        Log.d(TAG, "onStart: ");
-                    }
-
-                    @Override
-                    public void onFinish() {
-                        super.onFinish();
-                        loading.setVisibility(GONE);
-                        mOnTrimVideoListener.getResult(outputFileUri);
-                        Log.d(TAG, "onFinish: ");
-                    }
-                });
-            } catch (FFmpegCommandAlreadyRunningException e) {
-
-            }
+                    loading.setVisibility(GONE);
+                    mOnTrimVideoListener.getResult(outputFileUri);
+                }
+            };
+            (new Thread(trimRunnable)).start();
 
             //notify that video trimming started
             if (mOnTrimVideoListener != null)
