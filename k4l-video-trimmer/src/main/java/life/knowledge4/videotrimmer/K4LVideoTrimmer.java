@@ -46,6 +46,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.VideoView;
 
+import org.bytedeco.javacpp.avcodec;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.FFmpegFrameRecorder;
 import org.bytedeco.javacv.Frame;
@@ -320,12 +321,13 @@ public class K4LVideoTrimmer extends FrameLayout {
 
                         grabber.setFormat("mp4");
                         grabber.start();
-                        grabber.setTimestamp(mStartPosition);
+                        grabber.setTimestamp(mStartPosition * 1000);
 
                         recorder.setFrameRate(grabber.getFrameRate());
                         recorder.setSampleRate(grabber.getSampleRate());
                         recorder.setImageWidth(grabber.getImageWidth());
                         recorder.setImageHeight(grabber.getImageHeight());
+                        recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
                         recorder.start();
 
                         Frame frame;
@@ -335,6 +337,14 @@ public class K4LVideoTrimmer extends FrameLayout {
                         }
 
                         recorder.stop();
+
+                        File file = new File(outPutPath);
+                        if (file.exists()) {
+                            System.out.println("Output created");
+                        } else {
+                            System.out.println("Output not created");
+                        }
+
                         grabber.stop();
                     } catch (FrameRecorder.Exception e) {
                         e.printStackTrace();
